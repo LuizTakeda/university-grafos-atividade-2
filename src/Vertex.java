@@ -1,13 +1,13 @@
 import java.util.ArrayList;
 
-public class Vertex {
+public class Vertex implements Comparable<Vertex> {
 
   // Lista de arestas que partem deste vértice
   private ArrayList<EdgeTo> edges;
-  
+
   // Identificador único do vértice (usado internamente)
   private String id;
-  
+
   // Nome do vértice (pode ser o rótulo usado no GEXF)
   private String name;
 
@@ -50,4 +50,10 @@ public class Vertex {
   public String toString() {
     return this.name + "->" + this.edges.toString();
   }
+
+  @Override
+  public int compareTo(Vertex v) {
+    return this.id.compareTo(v.id);
+  }
+
 }

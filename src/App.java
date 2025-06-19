@@ -10,6 +10,7 @@ public class App {
     for (Vertex vertex : graph.getVertices()) {
       System.out.println(vertex);
     }
+    System.out.println("");
 
     // Calcula Betweenness Centrality
     BetweennessCentrality betweennessCentrality = new BetweennessCentrality(graph);
