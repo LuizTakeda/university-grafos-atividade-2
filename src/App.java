@@ -14,5 +14,6 @@ public class App {
 
     // Calcula Betweenness Centrality
     BetweennessCentrality betweennessCentrality = new BetweennessCentrality(graph);
+
   }
 }
