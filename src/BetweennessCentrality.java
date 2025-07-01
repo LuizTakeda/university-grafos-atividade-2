@@ -1,190 +1,122 @@
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
 
+/**
+ * Calcula e imprime a Centralidade de Intermediação (Betweenness Centrality) de cada vértice de um grafo.
+ *
+ * A Betweenness Centrality mede a importância de um vértice com base em quantos
+ * caminhos mínimos entre pares de outros vértices passam por ele. Ou seja, quantas vezes
+ * um vértice age como um “ponte” ao longo do caminho mais curto entre dois outros vértices.
+ *
+ * Essa métrica é útil para identificar vértices que controlam o fluxo de informações ou
+ * recursos em uma rede.
+ */
 public class BetweennessCentrality {
-  private Graph graph;
-
-  private TreeMap<Vertex, Float> crossQuantity;
-  private TreeMap<Vertex, Integer> pathQuantity;
+  private final Graph graph;
+  private final Map<Vertex, Float> bc = new HashMap<>(); // Armazena o valor da centralidade de cada vértice
 
   public BetweennessCentrality(Graph graph) {
     this.graph = graph;
-    this.crossQuantity = new TreeMap<>();
-    this.pathQuantity = new TreeMap<>();
 
-    this.logic();
-  }
-
-  private void logic() {
-    Vertex[] vertices = this.graph.getVertices().toArray(new Vertex[0]);
-
-    for (Vertex v : vertices) {
-      this.crossQuantity.put(v, 0F);
-      this.pathQuantity.put(v, 0);
+    // Inicializa a centralidade de todos os vértices com 0
+    for (Vertex v : graph.getVertices()) {
+      bc.put(v, 0.0f);
     }
 
-    List<List<Vertex>> paths = new ArrayList<>();
+    // Executa o algoritmo de Brandes
+    computeBrandes();
 
-    for (int sourceIndex = 0; sourceIndex < vertices.length - 1; sourceIndex++) {
-      Vertex sourceVertex = vertices[sourceIndex];
+    // Imprime os resultados
+    printResults();
+  }
 
-      // Calcula a árvore de busca do BFS
-      Set<Vertex> visit = new HashSet<>();
+  /**
+   * Implementação do algoritmo de Brandes para cálculo da Betweenness Centrality.
+   */
+  private void computeBrandes() {
+    for (Vertex source : graph.getVertices()) {
+      Stack<Vertex> stack = new Stack<>();
+      Map<Vertex, List<Vertex>> predecessors = new HashMap<>();
+      Map<Vertex, Integer> shortestPaths = new HashMap<>();
+      Map<Vertex, Integer> distance = new HashMap<>();
       Queue<Vertex> queue = new LinkedList<>();
 
-      Map<Vertex, Integer> distance = new HashMap<>();
-      Map<Vertex, List<Vertex>> predecessors = new HashMap<>();
+      for (Vertex v : graph.getVertices()) {
+        predecessors.put(v, new ArrayList<>());
+        shortestPaths.put(v, 0);
+        distance.put(v, -1);
+      }
 
-      queue.add(sourceVertex);
-      distance.put(sourceVertex, 0);
-      predecessors.put(sourceVertex, new ArrayList<>()); // a origem não tem predecessores
+      shortestPaths.put(source, 1);
+      distance.put(source, 0);
+      queue.add(source);
 
+      // Fase 1: Busca em largura (BFS) para encontrar distâncias e predecessores
       while (!queue.isEmpty()) {
         Vertex v = queue.poll();
-
-        if (visit.contains(v)) {
-          continue;
-        }
-
-        visit.add(v);
-        int currentDist = distance.get(v);
+        stack.push(v);
 
         for (EdgeTo edge : v.getEdges()) {
-          Vertex neighbor = edge.getVertex();
+          Vertex w = edge.getVertex();
 
-          int newDist = currentDist + 1;
-
-          if (!distance.containsKey(neighbor)) {
-            distance.put(neighbor, newDist);
-
-            predecessors.put(neighbor, new ArrayList<>());
-            predecessors.get(neighbor).add(v);
-
-            queue.add(neighbor);
-            continue;
+          if (distance.get(w) < 0) {
+            queue.add(w);
+            distance.put(w, distance.get(v) + 1);
           }
 
-          if (distance.get(neighbor) == newDist) {
-            // Outro caminho com mesma distância mínima
-            predecessors.get(neighbor).add(v);
+          if (distance.get(w) == distance.get(v) + 1) {
+            shortestPaths.put(w, shortestPaths.get(w) + shortestPaths.get(v));
+            predecessors.get(w).add(v);
           }
         }
       }
 
-      // Calculate the minimal paths
-      for (int targetIndex = sourceIndex + 1; targetIndex < vertices.length; targetIndex++) {
-        Vertex targetVertex = vertices[targetIndex];
-        // System.out.print(vertices[targetIndex].getName());
-        // this.encontrarCaminhosMinimos(targetVertex, sourceVertex, predecessors);
-        List<List<Vertex>> revarsePaths = new ArrayList<>();
-        List<Vertex> currentPath = new ArrayList<>();
-        this._makePaths(targetVertex, sourceVertex, predecessors, currentPath, revarsePaths);
+      // Fase 2: Acumulação de dependências
+      Map<Vertex, Float> dependencies = new HashMap<>();
+      for (Vertex v : graph.getVertices()) {
+        dependencies.put(v, 0.0f);
+      }
 
-        for (List<Vertex> path : revarsePaths) {
-          Collections.reverse(path); // It is in reverse
-          paths.add(path);
+      while (!stack.isEmpty()) {
+        Vertex w = stack.pop();
+
+        for (Vertex v : predecessors.get(w)) {
+          float ratio = (float) shortestPaths.get(v) / shortestPaths.get(w);
+          float delta = ratio * (1 + dependencies.get(w));
+          dependencies.put(v, dependencies.get(v) + delta);
+        }
+
+        if (!w.equals(source)) {
+          bc.put(w, bc.get(w) + dependencies.get(w));
         }
       }
     }
 
-    System.out.printf("Geodesic Quantity: %d\n", paths.size());
-
-    System.out.println("Minimal paths");
-    for (List<Vertex> minimalPath : paths) {
-      System.out.println(minimalPath);
-    }
-
-    for (Vertex v : vertices) {
-      int totalPathsExcludingExtremes = 0;
-
-      for (List<Vertex> minimalPath : paths) {
-        if (minimalPath.get(0) == v || minimalPath.get(minimalPath.size() - 1) == v) {
-          continue;
-        }
-
-        totalPathsExcludingExtremes++;
+    // Ajuste final: para grafos não direcionados, divide por 2 (valores são contados em duplicidade)
+    int n = graph.getVertices().size();
+    if (n > 2) {
+      for (Vertex v : bc.keySet()) {
+        bc.put(v, bc.get(v) / 2.0f);
       }
-
-      this.pathQuantity.put(v, totalPathsExcludingExtremes);
-    }
-
-    for (List<Vertex> minimalPath : paths) {
-      if (minimalPath.size() < 2)
-        continue;
-
-      for (int i = 1; i < minimalPath.size() - 1; i++) {
-        Vertex v = minimalPath.get(i);
-        this.crossQuantity.put(v, this.crossQuantity.get(v) + 1);
-      }
-    }
-
-    for (Map.Entry<Vertex, Integer> entry : this.pathQuantity.entrySet()) {
-      Vertex v = entry.getKey();
-      int pathQuantity = entry.getValue();
-      float cross = this.crossQuantity.get(v);
-
-      float bc = pathQuantity > 0 ? cross / pathQuantity : 0;
-
-      float normalization = (vertices.length - 1) * (vertices.length - 2) / 2.0f;
-      float normalizedBC = bc / normalization;
-
-      System.out.printf("BC (%s) %.4f (%f/%d) normalized %f\n", v.getName(), bc, cross, pathQuantity, normalizedBC);
-
-    }
-  }
-
-  private void _makePaths(
-      Vertex current, Vertex source,
-      Map<Vertex, List<Vertex>> predecessors,
-      List<Vertex> currentPath,
-      List<List<Vertex>> allPaths) {
-
-    currentPath.add(current);
-
-    if (current.equals(source)) {
-      allPaths.add(new ArrayList<>(currentPath));
     } else {
-      List<Vertex> parents = predecessors.get(current);
-
-      if (parents != null) {
-        for (Vertex parent : parents) {
-          this._makePaths(parent, source, predecessors, currentPath, allPaths);
-        }
+      for (Vertex v : bc.keySet()) {
+        bc.put(v, 0.0f);
       }
     }
-
-    currentPath.remove(currentPath.size() - 1);
-  }
-}
-
-class Pair<T> {
-  private final T first;
-  private final T second;
-
-  public Pair(T first, T second) {
-    this.first = first;
-    this.second = second;
   }
 
-  public T getFirst() {
-    return first;
-  }
+  /**
+   * Imprime os valores de centralidade de cada vértice, ordenados alfabeticamente pelo nome.
+   */
+  private void printResults() {
+    System.out.println("Betweenness Centrality:");
 
-  public T getSecond() {
-    return second;
-  }
+    TreeMap<String, Float> sorted = new TreeMap<>();
+    for (Map.Entry<Vertex, Float> entry : bc.entrySet()) {
+      sorted.put(entry.getKey().getName(), entry.getValue());
+    }
 
-  @Override
-  public String toString() {
-    return "(" + first + ", " + second + ")";
+    for (Map.Entry<String, Float> entry : sorted.entrySet()) {
+      System.out.printf("BC(%s) = %.4f\n", entry.getKey(), entry.getValue());
+    }
   }
 }
